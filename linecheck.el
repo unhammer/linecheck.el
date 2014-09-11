@@ -216,7 +216,7 @@ corresponding marks."
      (define-key
        linecheck-mode-map
        (string (car pair))
-       'linecheck-toggle-line-mark))
+       'linecheck-toggle-line-mark-when-bolp))
    linecheck-markkeys))
 
 (define-key linecheck-mode-map (kbd "j") 'linecheck-next-line-checked-when-bolp)
@@ -231,6 +231,19 @@ corresponding marks."
 (define-key linecheck-mode-map (kbd "f") 'linecheck-search-favourites-when-bolp)
 (define-key linecheck-mode-map (kbd "w") 'linecheck-search-wiki-abstract-when-bolp)
 (define-key linecheck-mode-map (kbd "L") 'linecheck-search-lexin-when-bolp)
+
+(define-key linecheck-mode-map (kbd "C-c j") 'linecheck-next-line-checked)
+(define-key linecheck-mode-map (kbd "C-c SPC") 'linecheck-next-line-checked)
+(define-key linecheck-mode-map (kbd "C-c k")  'linecheck-previous-line)
+(define-key linecheck-mode-map (kbd "C-c n") 'linecheck-goto-next-unchecked-line)
+
+(define-key linecheck-mode-map (kbd "C-c e") 'linecheck-edit)
+
+(define-key linecheck-mode-map (kbd "C-c S") 'linecheck-search-ddg-browser)
+(define-key linecheck-mode-map (kbd "C-c s") 'linecheck-search-ddg-abstract)
+(define-key linecheck-mode-map (kbd "C-c f") 'linecheck-search-favourites)
+(define-key linecheck-mode-map (kbd "C-c w") 'linecheck-search-wiki-abstract)
+(define-key linecheck-mode-map (kbd "C-c L") 'linecheck-search-lexin)
 
 (provide 'linecheck)
 

@@ -5,7 +5,7 @@
 ;; Author: Kevin Brubeck Unhammer <unhammer@fsfe.org>
 ;; Version: 0.1.0
 ;; Url:
-;; Keywords: 
+;; Keywords:
 
 ;; This file is not part of GNU Emacs.
 
@@ -35,13 +35,15 @@
   "Keymap for linecheck minor mode.")
 
 (defvar linecheck-markkeys
-  '((?c . "#") (?v . "|") (?x . "?") (?s . "=") (?b . "/"))
+  '((?i . "+") (?d . "-") (?c . "#") (?v . "|") (?q . "?") (?e . "=") (?s . "/"))
   "Assoc list containing pairs of keybinding (as single char) and
 a mark to add to the beginning of line on typing the char at the
 beginning of a line.")
 (put 'linecheck-markkeys 'safe-local-variable 'listp)
 
-(defvar linecheck-item-regex "[[:alpha:]][[:alpha:] .-]*[[:alpha:].]")
+(defvar linecheck-item-regex "[[:alpha:]][[:alpha:] .-]*[[:alpha:].]"
+  "Used for searching for the first \"item\" – the thing you're
+  checking on this line.")
 
 ;;;###autoload
 (define-minor-mode linecheck-mode
@@ -112,15 +114,6 @@ corresponding marks."
     (recenter)
     (linecheck-initial-line-mark (cdar linecheck-markkeys))))
 
-(defun linecheck-next-line-checked-and-search ()
-  (interactive)
-  (linecheck-when-bolp
-    (forward-line)
-    (recenter)
-    (when (prog1 (not (linecheck-line-is-markedp))
-	    (linecheck-initial-line-mark (cdar linecheck-markkeys)))
-      (linecheck-search-favourites))))
-
 (defun linecheck-previous-line ()
   (interactive)
   (linecheck-when-bolp
@@ -152,12 +145,19 @@ corresponding marks."
      (re-search-forward linecheck-item-regex (line-end-position) 'noerror)
      (buffer-substring-no-properties (match-beginning 0) (match-end 0)))))
 
+(defvar linecheck-favourite-search-fns '(linecheck-search-ddg-abstract
+					 linecheck-search-wiki-abstract
+					 linecheck-search-ddg-browser)
+  "Used by linecheck-search-favourites")
+
 (defun linecheck-search-favourites ()
   "Stop at the first hit."		; TODO: defvar list of search fn's
   (interactive)
-  (when (equal "" (linecheck-search-ddg-abstract))
-    (when (equal "" (linecheck-search-wiki-abstract))
-      (linecheck-search-ddg-browser))))
+  (let ((res "")
+	(fns linecheck-favourite-search-fns))
+    (while (and fns (equal res ""))
+      (setq res (funcall (car fns))
+	    fns (cdr fns)))))
 
 (defun linecheck-search-wiki-abstract ()
   (interactive)
@@ -214,7 +214,6 @@ corresponding marks."
    linecheck-markkeys))
 
 (define-key linecheck-mode-map (kbd "j") 'linecheck-next-line-checked)
-(define-key linecheck-mode-map (kbd "J") 'linecheck-next-line-checked-and-search)
 (define-key linecheck-mode-map (kbd "SPC") 'linecheck-next-line-checked)
 (define-key linecheck-mode-map (kbd "k")  'linecheck-previous-line)
 (define-key linecheck-mode-map (kbd "n") 'linecheck-goto-next-unchecked-line)

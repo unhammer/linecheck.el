@@ -41,6 +41,9 @@ a mark to add to the beginning of line on typing the char at the
 beginning of a line.")
 (put 'linecheck-markkeys 'safe-local-variable 'listp)
 
+(defun linecheck-looking-at-markkey ()
+  (looking-at (regexp-opt (mapcar 'cdr linecheck-markkeys))))
+
 (defvar linecheck-item-regex "[[:alpha:]][[:alpha:] .-]*[[:alpha:].]"
   "Used for searching for the first \"item\" – the thing you're
   checking on this line.")
@@ -81,25 +84,36 @@ Entering linecheck-mode calls the hook linecheck-mode-hook.
        (progn ,@body)
      (call-interactively 'self-insert-command)))
 
-(defun linecheck-toggle-line-mark ()
+(defmacro linecheck-defbolp (name arglist docstring &rest body)
+  "Define two interactive versions of function – second one only
+has an effect at the beginning of line."
+  (declare (indent defun) (debug t))
+  `(progn
+     (defun ,(intern (concat (symbol-name name) "-when-bolp")) ,arglist
+       ,docstring
+       (interactive)
+       (linecheck-when-bolp ,@body))
+     (defun ,name ,arglist
+       ,docstring
+       (interactive)
+       ,@body)))
+
+(linecheck-defbolp linecheck-toggle-line-mark ()
   "Toggle the line mark on this line. See
 `linecheck-markkeys' for the list of keybindings and
 corresponding marks."
-  (interactive)
   (let ((char (cdr (assoc last-command-event linecheck-markkeys))))
-    (linecheck-when-bolp
-     (if (looking-at char)
-	 (delete-char 1)
-       (when (looking-at
-	      (concat "[" (mapconcat 'cdr linecheck-markkeys "") "]"))
-	 (delete-char 1))
-       (insert char))
-     (beginning-of-line))))
+    (if (looking-at char)
+	(delete-char 1)
+      (when (linecheck-looking-at-markkey)
+	(delete-char 1))
+      (insert char))
+    (beginning-of-line)))
 
 (defun linecheck-line-is-markedp ()
   (save-excursion
     (beginning-of-line)
-    (looking-at (concat "[" (mapconcat 'cdr linecheck-markkeys "") "]"))))
+    (linecheck-looking-at-markkey)))
 
 (defun linecheck-initial-line-mark (char)
   (beginning-of-line)
@@ -107,35 +121,34 @@ corresponding marks."
     (insert char)
     (beginning-of-line)))
 
-(defun linecheck-next-line-checked ()
-  (interactive)
-  (linecheck-when-bolp
-    (forward-line)
-    (recenter)
-    (linecheck-initial-line-mark (cdar linecheck-markkeys))))
+(linecheck-defbolp linecheck-next-line-checked ()
+  "Go to next line and check it with the first markkey (see
+`linecheck-markkeys')."
+  (forward-line)
+  (recenter)
+  (linecheck-initial-line-mark (cdar linecheck-markkeys)))
 
-(defun linecheck-previous-line ()
-  (interactive)
-  (linecheck-when-bolp
-   (forward-line -1)
-   (beginning-of-line)))
+(linecheck-defbolp linecheck-previous-line ()
+  "Go to previous line"
+  (forward-line -1)
+  (beginning-of-line))
 
-(defun linecheck-goto-next-unchecked-line ()
-  (interactive)
-  (linecheck-when-bolp
-   (re-search-forward
-    (concat "^[^" (mapconcat 'cdr linecheck-markkeys "") "]"))
-   (forward-line -1)
-   (beginning-of-line)))
-
-
+(linecheck-defbolp linecheck-goto-next-unchecked-line ()
+  "Go to the next line that needs checking."
+  (beginning-of-line)
+  (let ((goback (linecheck-looking-at-markkey)))
+    (while (linecheck-looking-at-markkey)
+      (forward-line 1))
+    (when goback
+      (forward-line -1))))
 
 
-(defun linecheck-edit ()
-  (interactive)
-  (linecheck-when-bolp
-    (when (re-search-forward linecheck-item-regex (line-end-position) 'noerror)
-      (goto-char (match-beginning 0)))))
+
+
+(linecheck-defbolp linecheck-edit ()
+  ""
+  (when (re-search-forward linecheck-item-regex (line-end-position) 'noerror)
+    (goto-char (match-beginning 0))))
 
 
 ;;; Search/lookup functions:
@@ -150,54 +163,47 @@ corresponding marks."
 					 linecheck-search-ddg-browser)
   "Used by linecheck-search-favourites")
 
-(defun linecheck-search-favourites ()
-  "Stop at the first hit."		; TODO: defvar list of search fn's
-  (interactive)
+(linecheck-defbolp linecheck-search-favourites ()
+  "Stop at the first hit."
   (let ((res "")
 	(fns linecheck-favourite-search-fns))
     (while (and fns (equal res ""))
       (setq res (funcall (car fns))
 	    fns (cdr fns)))))
 
-(defun linecheck-search-wiki-abstract ()
-  (interactive)
-  (linecheck-when-bolp
-    (let ((res (dimwiki-search
-		(format "%s" (linecheck-item)))))
-      (message "%s" (substring res 0 (min (length res)
-					  250))))))
+(linecheck-defbolp linecheck-search-wiki-abstract ()
+  "Search wikipedia, requires dimwiki.el."
+  (let ((res (dimwiki-search
+	      (format "%s" (linecheck-item)))))
+    (message "%s" (substring res 0 (min (length res)
+					250)))))
 
-(defun linecheck-search-ddg-abstract ()
-  (interactive)
-  (linecheck-when-bolp
-    (message "%s" (cdr (assoc 'Abstract
-			      (ddg-search
-			       (format "%s" (linecheck-item))))))))
+(linecheck-defbolp linecheck-search-ddg-abstract ()
+  "Search DuckDuckGo for an abstract-result, requires ddg.el"
+  (message "%s" (cdr (assoc 'Abstract
+			    (ddg-search
+			     (format "%s" (linecheck-item)))))))
 
-(defun linecheck-search-ddg-browser ()
-  (interactive)
-  (linecheck-when-bolp
-    (browse-url (format "http://ddg.gg/?q=\"%s\"" (linecheck-item)))))
+(linecheck-defbolp linecheck-search-ddg-browser ()
+  "Search DuckDuckGo with your browser."
+  (browse-url (format "http://ddg.gg/?q=\"%s\"" (linecheck-item))))
 
-(defun linecheck-search-lexin ()
-  (interactive)
-  (linecheck-when-bolp
-    (let ((word (linecheck-item)))
-      (when word
-	(browse-url
-	 (concat "http://decentius.hit.uib.no/lexin.html?"
-		 "&dict=nbo-nny-maxi"
-		 "&checked-languages=E"
-		 "&checked-languages=N"
-		 "&checked-languages=NNY"
-		 "&search=" word))))))
+(linecheck-defbolp linecheck-search-lexin ()
+  "Search lexin"
+  (let ((word (linecheck-item)))
+    (when word
+      (browse-url
+       (concat "http://decentius.hit.uib.no/lexin.html?"
+	       "&dict=nbo-nny-maxi"
+	       "&checked-languages=E"
+	       "&checked-languages=N"
+	       "&checked-languages=NNY"
+	       "&search=" word)))))
 
-(defun linecheck-search-nwn ()
+(linecheck-defbolp linecheck-search-nwn ()
   "Requires moz-nwn-lookup.el"
-  (interactive)
-  (linecheck-when-bolp
-    (let ((word (linecheck-item)))
-      (moz-nwn-lookup-thing-at-point word))))
+  (let ((word (linecheck-item)))
+    (moz-nwn-lookup-thing-at-point word)))
 
 
 
@@ -213,18 +219,18 @@ corresponding marks."
        'linecheck-toggle-line-mark))
    linecheck-markkeys))
 
-(define-key linecheck-mode-map (kbd "j") 'linecheck-next-line-checked)
-(define-key linecheck-mode-map (kbd "SPC") 'linecheck-next-line-checked)
-(define-key linecheck-mode-map (kbd "k")  'linecheck-previous-line)
-(define-key linecheck-mode-map (kbd "n") 'linecheck-goto-next-unchecked-line)
+(define-key linecheck-mode-map (kbd "j") 'linecheck-next-line-checked-when-bolp)
+(define-key linecheck-mode-map (kbd "SPC") 'linecheck-next-line-checked-when-bolp)
+(define-key linecheck-mode-map (kbd "k")  'linecheck-previous-line-when-bolp)
+(define-key linecheck-mode-map (kbd "n") 'linecheck-goto-next-unchecked-line-when-bolp)
 
-(define-key linecheck-mode-map (kbd "e") 'linecheck-edit)
+(define-key linecheck-mode-map (kbd "e") 'linecheck-edit-when-bolp)
 
-(define-key linecheck-mode-map (kbd "S") 'linecheck-search-ddg-browser)
-(define-key linecheck-mode-map (kbd "s") 'linecheck-search-ddg-abstract)
-(define-key linecheck-mode-map (kbd "f") 'linecheck-search-favourites)
-(define-key linecheck-mode-map (kbd "w") 'linecheck-search-wiki-abstract)
-(define-key linecheck-mode-map (kbd "L") 'linecheck-search-lexin)
+(define-key linecheck-mode-map (kbd "S") 'linecheck-search-ddg-browser-when-bolp)
+(define-key linecheck-mode-map (kbd "s") 'linecheck-search-ddg-abstract-when-bolp)
+(define-key linecheck-mode-map (kbd "f") 'linecheck-search-favourites-when-bolp)
+(define-key linecheck-mode-map (kbd "w") 'linecheck-search-wiki-abstract-when-bolp)
+(define-key linecheck-mode-map (kbd "L") 'linecheck-search-lexin-when-bolp)
 
 (provide 'linecheck)
 

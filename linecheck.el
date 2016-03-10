@@ -1,9 +1,9 @@
 ;;; linecheck.el --- Quickly add marks to the beginnings of lines
 
-;; Copyright (C) 2014 Kevin Brubeck Unhammer
+;; Copyright (C) 2014--2016 Kevin Brubeck Unhammer
 
 ;; Author: Kevin Brubeck Unhammer <unhammer@fsfe.org>
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Url:
 ;; Keywords:
 
@@ -35,7 +35,7 @@
   "Keymap for linecheck minor mode.")
 
 (defvar linecheck-markkeys
-  '((?i . "+") (?d . "-") (?c . "#") (?v . "|") (?q . "?") (?e . "=") (?s . "/"))
+  '((?i . "+") (?d . "-") (?c . "#") (?v . "|") (?q . "?") (?r . "=") (?l . "/"))
   "Assoc list containing pairs of keybinding (as single char) and
 a mark to add to the beginning of line on typing the char at the
 beginning of a line.")
@@ -44,9 +44,10 @@ beginning of a line.")
 (defun linecheck-looking-at-markkey ()
   (looking-at (regexp-opt (mapcar 'cdr linecheck-markkeys))))
 
-(defvar linecheck-item-regex "[[:alpha:]][[:alpha:] .-]*[[:alpha:].]"
-  "Used for searching for the first \"item\" – the thing you're
-  checking on this line.")
+(defvar linecheck-item-regex "\\([[:alpha:]][[:alpha:] .-]*[[:alpha:].]\\)"
+  "Defines what you're checking on this line.
+Used for searching for the first \"item\"; the item should be in
+the first regex capture group.")
 
 ;;;###autoload
 (define-minor-mode linecheck-mode
@@ -148,7 +149,7 @@ corresponding marks."
 (linecheck-defbolp linecheck-edit ()
   ""
   (when (re-search-forward linecheck-item-regex (line-end-position) 'noerror)
-    (goto-char (match-beginning 0))))
+    (goto-char (match-beginning 1))))
 
 
 ;;; Search/lookup functions:
@@ -156,7 +157,7 @@ corresponding marks."
   (save-excursion
     (and
      (re-search-forward linecheck-item-regex (line-end-position) 'noerror)
-     (buffer-substring-no-properties (match-beginning 0) (match-end 0)))))
+     (buffer-substring-no-properties (match-beginning 1) (match-end 1)))))
 
 (defvar linecheck-favourite-search-fns '(linecheck-search-ddg-abstract
 					 linecheck-search-wiki-abstract
